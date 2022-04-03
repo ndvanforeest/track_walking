@@ -1,0 +1,120 @@
+#+title: Maximize the tracks from  A to B
+#+author: Nicky van Foreest
+#+date: 2022:03:24
+
+* Introduction
+
+The Pieterpad is a long distance walking route in the Netherlands from the north to the south via paths, tracks, and small roads.
+While walking this route with my wife we noticed that we prefer tracks over roads and stay away from the noise of motorways. This made me wonder whether I could use data from OpenStreetMap and the shortest path algorithm to improve on the Pieterpad by increasing the fraction of tracks without making the overall length much longer. This question lead to the project below.
+
+In a mathematical sense the problem is simple: Make a graph of all roads, tracks, ..., in the Netherlands. Next assign costs to each edge such that tracks have the lowest cost, cycle paths slightly higher, and stay clear of motorways. Then the best path from $A$ to $B$ is just the path with the least cost.
+However, even though the Netherlands is (perceived to be) a small country, a graph of even part of our green country contains so many nodes and edges that 16 GB RAM does not suffice to run the shortest path algorithm. Thus, finding the best path confronted me with some interesting problems.
+
+Below I describe how I approached this problem. In passing, we'll see how to use the nearest neighbor algorithms of =scikit.learn= to  classify data and compute distances. Next, we'll  use =osmium= to unpack data and =sqlite= to store and query data, and =networkx= for the graphs to clean up data and find the cheapest path. Finally, with ~folium~ we plot the best path in a HTML page so that we can admire the best path in a browser. We also write the path to a =gpx= file so that we can import it in a mobile phone.
+
+The steps to find the cheapest path depend on each other.
+Some of these steps only have to be done once, such as the computation of road length, but others not. For this reason I put the steps in different python files.
+
+Overall I don't claim that I improved the Pieterpad; this path has been improved for many years by /humans/, i.e., /not/ computers.
+However, I find the code is very useful to make my own routes; for instance,  the nicest route along all addresses at which my wife and I lived with our parents and children.
+
+* Getting the data
+
+To  download the  map data I started with the Overpass API to OpenStreetMap, but that did not work really well; I needed too much data. Therefore I downloaded the relevant ~pbf~ files from
+https://download.geofabrik.de/europe/netherlands.html. For the Pieterpad I need the maps of Groningen, Drenthe, Overijssel, Gelderland and Limburg and I store the files in =~/tmp/= as I don't really care where to put them. These files are very large when unzipped (many, many GBs), so it's better not to unzip them, but use =osmium= to parse them.
+
+
+
+* Roads and edges
+
+A ~pbf~ file stores location information with nodes.
+Many such nodes correspond to  /highways/, such as roads, tracks, paths, or trunks, while other nodes correspond to forest boundaries, lakes, and the like. Clearly, for  my project I only need the nodes related to highways.
+
+A highway is a list of /node ids/, e.g.
+~<nd ref="47803835"/>~, and /tags/, e.g., ~<tag k="highway" v="cycleway"/>~. Sometimes there are tags with more information, e.g., ~<tag k="name" v="Schipborgerweg"/>~ and ~<tag k="surface" v="asphalt"/>~, but this is not always available. Therefore we'll use just the list of node ids of a highway and the highway tag. The nodes in a highway list are supposed to be connected.
+
+We use =osmium= to read the data from a =.pbf= file.
+To limit the memory usage =osmium= offers a quite specific API. Please read it for the details. After having read the nodes, we don't store it right away in a sqlite database. First we form a graph $G$ of the data and remove all nodes that are not in the largest connected component of $G$, as such nodes cannot be reached from any publicly accessible road.
+
+#+begin_src shell
+python read_write_highways.py
+#+end_src
+
+Once we have all relevant highway nodes, we need to read the gps coordinates, i.e., the latitude and longitude, of each node. We store this information also in the sql database.
+
+#+begin_src shell
+python read_write_node_coordinates.py
+#+end_src
+
+We need to run these programs only once.
+
+* Computing edge lengths
+
+The best path from $A$ to $B$ depends on the costs of the highways (in the OpenStreetMap sense) we take. As the highways form edges in a graph, we are henceforth concerned with edge costs.
+
+Clearly, the cost of an edge should be a function of its length and its tag. As the edge length does not depend on our preference for a certain type of highway,  we compute the edge lengths in a separate program, which also  only has  to run once.
+
+To obtain the  length (in meters) of an edge between to two gps coordinates, we  use the haversine formula. To save space we store the length as an int. There is slight problem with this choice, however. Some edges turn out to have a length of less than 0.5 m, which will become zero after rounding. To prevent this, we take as length ~max(int(l + 0.5), 1)~ where ~l~ is the result of the haversine formula.
+
+#+begin_src shell
+python compute_edge_lengths.py
+#+end_src
+
+* Setting edge costs
+
+If we would follow the shortest path, we will walk many kilometers on primary and secondary roads. To prevent this, we assign  to each edge a cost which is the product of the edge length and a factor that depends on the highway tag.  A highway tagged as ~track~ gets a factor of 1;   a factor of zero will result in path with zero-cost cycles.  Highways with other tags get  a cost factor of at least 1, and often higher.
+
+Using an extra factor seems to be OK, but it turns out that we can obtain paths with tracks that lie next to trunks. (This is certainly not my idea of a nice walk.) To prevent this, we multiply any edge in the neighborhood of a trunk with yet another factor that is also larger than 1.
+
+This additional cost factor places us for the challenge to classify nodes as being near to a trunk or not. For this, the =KDtree= of =scikit= is very useful. After building the tree with the coordinates of the trunk nodes as data, we query the tree on the number of elements in the tree (i.e., the number of trunk nodes) that lie within a certain radius of a non trunk node. If this number happens to be at least one, we classify the non trunk node as near to a trunk, and otherwise not.
+
+Overall, tuning the costs required  a bit more work than I anticipated. My best attempt is in =common.py=.
+
+#+begin_src python
+python compute_edge_costs.py
+#+end_src
+
+* Compressing the graph
+
+So far so good. In fact, all of the above suffices to find optimal paths on small graphs. However, for any path of somewhat serious size we need  to compress the graph to a sub-graph with much less nodes and edges.
+
+My first attempt was to simply remove nodes with very short edges. Specifically, suppose I have three nodes $a, b, c$ connected with edges. Writing $l(a,b)$ for the length in meters of the edge connecting nodes $a$ and $b$, then if $l(a,b) < 30$, I would add an edge between nodes $a$ and $c$, and remove node $b$ (with its edges). This idea worked, but gives rough edges around road bends in the final path. Moreover, the threshold of 30 is somewhat arbitrary, and worse, the idea is  elegant nor efficient.
+
+A much better idea is to /prune/ all nodes that have a degree of 2. Consider again nodes $a, b, c$, and suppose $b$ has only nodes $a$ and $c$ as neighbors. Then add an edge between $a$ and $c$ with edge cost $c(a,c) = c(a, b) + c(b, c)$, where $c(.,.)$  is the cost  of an edge depending on its  length and  tag, and remove node $b$.
+
+Pruning  works, but not automatically. Suppose we have a graph like this: $a-b-c-a$. If we remove node $b$, then suddenly node $c$ has just node $a$ as its only neighbor. Hence, in the process of short-circuiting nodes with degree 2, the degree of some nodes can become lower. Since nodes with degree 1 are dead-ends, we can remove these right away, but nodes with degree 3 can become nodes with degree 2. Hence, we should apply the same algorithm a few times.
+
+Another slight complication arises when a node is  connected to another node via different paths. Consider, for instance, a graph with edges $a-b-c-d-e$ and a direct edge from $b$ to $d$. If we prune node $c$, then we add an extra edge between $b$ and $d$. Thus, we should keep the cheapest of both these edges while pruning.
+
+The first 2 or 3 passes of this algorithm gives, by far, the largest reduction. For safety we apply it 5 times to achieve a reduction in the number of nodes of about a factor 6. We refer to  the compressed graph as $C$.
+
+Clearly, only after computing all the edge costs, we can compute the compressed graph $C$.
+
+#+begin_src shell
+python compute_edge_costs.py
+python compress.py
+#+end_src
+
+
+
+* The best path in the compressed graph
+
+Now it's time to find the cheapest path from $A$ to $B$ on the compressed graph $C$.
+
+We assume that $A$ and $B$ are specified as gps coordinates.  If you don't know  the gps coordinates, go to [[https://www.openstreetmap.org/]], look up your point ~A~ on the map, right click with the mouse and select ~show address~. In the pop up box you'll see the gps coordinates.
+
+Since $C$ has fewer nodes than $G$, it need not contain $A$ and $B$. To identify the node in $C$ that is closest to $A$, we again use a nearest neighbor tree. For this we first select the nodes in $C$ within a small square around $A$; this square is simple to obtain from =sqlite=. Then we build the tree with =scikit= from the nodes in the square and query for the node that is nearest to $A$. (Finding the nearest node  with =sqlite= is much less easy.)
+
+The shortest path algorithm in =networkx= provides us with the cheapest path. However, again to limit the number of nodes in the search graph we specify a thickened rectangle around the points $A$ and $B$ and use only the nodes in this rectangle in the graph.
+
+
+* Retrieve the full best path
+The plot of the best path on the compressed graph $C$ is pretty rough as it does not follow all bends of the highways on the map. To obtain a visually nice path, we re-engineer  the best path on the full graph $G$ based on the best path $B$ in $C$. This is remarkably easy. Take any adjacent points in $B$, and compute the cheapest path in $G$ between these points. Then connect all such segments of $G$ to form the overall best path.
+
+#+begin_src shell
+python find_path.py
+#+end_src
+
+We write the the path to an html file with =folium=.
+
+* TODO Write to a gpx or kml file
