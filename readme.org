@@ -1,4 +1,4 @@
-#+title: Maximize the tracks from  A to B
+#+title: I want to take many tracks when walking from  A to B
 #+author: Nicky van Foreest
 #+date: 2022:03:24
 
