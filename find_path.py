@@ -17,9 +17,12 @@ onder_balloerveld = 52.9906, 6.6528
 balloo = 52.9959, 6.6315
 midlaren = 53.1061, 6.6737
 vriezeveen = 52.4131, 6.6284
-
+vorden = 52.1038, 6.3126
+babberich = 51.9061, 6.1143
+pieterberg = 50.8265, 5.6869
 start = noorderplantsoen
-finish = oranje_kanaal
+finish = pieterberg
+via = [vorden, babberich]
 via = []
 # via = [haren_roeiclub, midlaren]
 # via = [haren_roeiclub]
