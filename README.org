@@ -25,7 +25,7 @@ However, I find the code useful for making my own routes, for instance,  the nic
 * Getting the data
 
 To  download the  map data I started with the Overpass API to OpenStreetMap, but that did not work really well; I needed too much data. Therefore I downloaded the relevant ~pbf~ files from
-https://download.geofabrik.de/europe/netherlands.html. For the Pieterpad I need the maps of Groningen, Drenthe, Overijssel, Gelderland and Limburg and I store the files in =~/tmp/= as I don't really care where to put them. These files are very large when unzipped (many, many GBs), so it's better not to unzip them, but use =osmium= to parse them.
+https://download.geofabrik.de/europe/netherlands.html. For the Pieterpad I need the maps of Groningen, Drenthe, Overijssel, Gelderland and Limburg;  I store the files in =~/tmp/=. These files are very large when unzipped (many, many GBs), so it's better not to unzip them, but use =osmium= to parse them.
 
 
 
@@ -38,8 +38,9 @@ A highway is a list of /node ids/, e.g.
 ~<nd ref="47803835"/>~, and /tags/, e.g., ~<tag k="highway" v="cycleway"/>~. Sometimes there are tags with more information, e.g., ~<tag k="name" v="Schipborgerweg"/>~ and ~<tag k="surface" v="asphalt"/>~, but this is not always available. Therefore we'll use just the list of node ids of a highway and the highway tag. The nodes in a highway list are supposed to be connected.
 
 We use =osmium= to read the data from a =.pbf= file.
-To limit the memory usage =osmium= offers a quite specific API. Please read it for the details. After having read the nodes, we don't store it right away in a sqlite database. First we form a graph $G$ of the data and remove all nodes that are not in the largest connected component of $G$, as such nodes cannot be reached from any publicly accessible road.
+To limit the memory usage, =osmium= offers a quite specific API. (Consult it for the details.) After having read the nodes, we don't store it right away in a sqlite database. First we form a graph $G$ of the data and remove all nodes that are not in the largest connected component of $G$, as such nodes cannot be reached from any publicly accessible road.
 
+The file to run is this.
 #+begin_src shell
 python read_write_highways.py
 #+end_src
@@ -54,7 +55,7 @@ We need to run these programs only once.
 
 * Computing edge lengths
 
-The best path from $A$ to $B$ depends on the costs of the highways (in the OpenStreetMap sense) we take. As the highways form edges in a graph, we are henceforth concerned with edge costs.
+The best path from $A$ to $B$ depends on the costs of the highways (in the OpenStreetMap sense). As the highways form edges in a graph, we are henceforth concerned with edge costs.
 
 Clearly, the cost of an edge should be a function of its length and its tag. As the edge length does not depend on our preference for a certain type of highway,  we compute the edge lengths in a separate program, which also  only has  to run once.
 
@@ -122,3 +123,5 @@ python find_path.py
 We write the the path to an html file with =folium=.
 
 * TODO Write to a gpx or kml file
+
+TBD.
