@@ -11,18 +11,20 @@ def drop_table():
 
 
 def make_table():
-    sql_command = """CREATE TABLE highways (
-    id INTEGER PRIMARY KEY,
-    node_from int,
-    node_to int,
-    tag int,
-    length int default 0,
-    near_trunk int default 0,
-    cost int default 0,
-    UNIQUE(node_from, node_to)
-    );"""
+    sql = (
+        "CREATE TABLE highways ("
+        "id INTEGER PRIMARY KEY,"
+        "node_from int,"
+        "node_to int,"
+        "tag int,"
+        "length int default 0,"
+        "near_trunk int default 0,"
+        "cost int default 0,"
+        "UNIQUE(node_from, node_to)"
+        ");"
+    )
 
-    cur.execute(sql_command)
+    cur.execute(sql)
     conn.commit()
 
 
@@ -50,19 +52,20 @@ def read_write_highway_data(fname):
     # to the largest component of the highway graph
     # because such nodes can never appear in any sensible route.
     G = nx.Graph()
-    for h in h.highways:
-        G.add_edges_from(zip(h[:-2], h[1:-1]), tag=h[-1])
+    for e in h.highways:
+        G.add_edges_from(zip(e[:-2], e[1:-1]), tag=e[-1])
     largest = max(nx.connected_components(G), key=len)
-    for n in set(G.nodes()) - largest:
-        G.remove_node(n)
+    G.remove_nodes_from(G.nodes() - largest)
     print("pruning done")
 
     for e in G.edges:
         tag = G.get_edge_data(*e)['tag']
-        sql_command = f"""INSERT OR IGNORE INTO highways(
-        node_from, node_to, tag) VALUES
-        ({e[0]}, {e[1]}, {tag})"""
-        cur.execute(sql_command)
+        sql = (
+            "INSERT OR IGNORE INTO highways("
+            " node_from, node_to, tag) VALUES"
+            f" ({e[0]}, {e[1]}, {tag})"
+        )
+        cur.execute(sql)
     conn.commit()
     print("writing done")
 

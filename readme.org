@@ -1,4 +1,4 @@
-#+title: How to avoid cars and bikes when walking from  A to B
+#+title: How to avoid cars and bikes when walking from A to B
 #+author: Nicky van Foreest
 #+date: 2022:03:24
 

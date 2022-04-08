@@ -26,8 +26,8 @@ def compute_near_trunk():
     hit = tree.query_radius(nodes[:, [1, 2]], r=eps, count_only=True)
     near_to_trunk = nodes[hit > 0]
     for node_id in near_to_trunk[:, 0]:
-        sql_command = f"UPDATE highways SET near_trunk = 1 WHERE node_from = {node_id}"
-        cur.execute(sql_command)
+        sql = f"UPDATE highways SET near_trunk = 1 WHERE node_from = {node_id}"
+        cur.execute(sql)
     conn.commit()
 
 

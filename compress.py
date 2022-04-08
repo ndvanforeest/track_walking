@@ -42,10 +42,12 @@ def compress():
 def write_to_db(G):
     for e in G.edges:
         cost = G.get_edge_data(*e)['cost']
-        sql_command = f"""INSERT OR IGNORE INTO compressed(
-        node_from, node_to, cost) VALUES
-        ({e[0]}, {e[1]}, {cost})"""
-        cur.execute(sql_command)
+        sql = (
+            "INSERT OR IGNORE INTO compressed("
+            "node_from, node_to, cost) VALUES"
+            f"({e[0]}, {e[1]}, {cost})"
+        )
+        cur.execute(sql)
     conn.commit()
 
 
@@ -55,15 +57,16 @@ def drop_table():
 
 
 def make_table():
-    sql_command = """CREATE TABLE compressed (
-    id INTEGER PRIMARY KEY,
-    node_from int,
-    node_to int,
-    cost int default 0,
-    UNIQUE(node_from, node_to)
-    );"""
-
-    cur.execute(sql_command)
+    sql = (
+        "CREATE TABLE compressed ("
+        "id INTEGER PRIMARY KEY,"
+        "node_from int,"
+        "node_to int,"
+        "cost int default 0,"
+        "UNIQUE(node_from, node_to)"
+        ");"
+    )
+    cur.execute(sql)
     conn.commit()
 
 
