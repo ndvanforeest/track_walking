@@ -5,10 +5,10 @@ provinces = [
     "groningen",
     "drenthe",
     "overijssel",
-    # "flevoland",
-    # "friesland",
     "gelderland",
     "limburg",
+    # "flevoland",
+    # "friesland",
     # "noord-holland",
     # "utrecht",
 ]

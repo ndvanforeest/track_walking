@@ -100,6 +100,16 @@ python compute_edge_costs.py
 python compress.py
 #+end_src
 
+* Do it all at once
+
+When adding or removing a province, the steps above have to redone.
+
+#+begin_src shell
+./read_write_highways.py
+./read_write_node_coordinates.py
+./compute_edge_lengths.py
+./compute_edge_costs.py
+#+end_src
 
 
 * The best path in the compressed graph

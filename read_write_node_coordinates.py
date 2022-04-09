@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sqlite3
 import osmium
 import networkx as nx

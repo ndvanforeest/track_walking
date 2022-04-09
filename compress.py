@@ -18,7 +18,17 @@ def compress():
         node_from, node_to, cost = e
         G.add_edge(node_from, node_to, cost=cost)
 
+    # dead ends can be removed straight away
     print(G.number_of_nodes())
+    nodes = set(n for n in G.nodes() if G.degree(n) == 1)
+    while nodes:
+        m = nodes.pop()
+        while G.degree(m) == 1:
+            n = list(G.neighbors(m))[0]
+            G.remove_node(m)
+            m = n
+    print(G.number_of_nodes())
+    # contract highways
     nodes = set(n for n in G.nodes() if G.degree(n) <= 2)
     num_passes = 0
     while nodes and num_passes < 5:
