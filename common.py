@@ -67,8 +67,8 @@ cost_factor = {
     'tertiary_link': 1.5 * factor,
     'secondary': 1.5 * factor,
     'secondary_link': 1.5 * factor,
-    'primary': 2 * factor,
-    'primary_link': 2 * factor,
+    'primary': 100 * factor,
+    'primary_link': 100 * factor,
     'service': 2 * factor,
 }
 
@@ -88,6 +88,10 @@ tag_to_color = {
     'tertiary': "orange",
     'tertiary_link': "orange",
     'secondary': "red",
+    'primary': "red",
     'secondary_link': "red",
+    'motorway': "red",
+    'motorway_link': "red",
+    'primary_link': "red",
     'service': "black",
 }

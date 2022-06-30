@@ -2,6 +2,15 @@
 #+author: Nicky van Foreest
 #+date: 2022:03:24
 
+#+LATEX_HEADER: \usepackage{standardStyle}
+
+* TODO
+
+- astar for faster routing algorithm. This is also an example of recursion and flooding.
+- k nearest neighbor with many  forest nodes, i.e, k big, in the neighborhood of a track node are a good sign (that you are in a forest). This may improve cost setting.
+
+
+
 * Introduction
 
 The Pieterpad is a long distance walking route in the Netherlands from the north to the south via paths, tracks, and small roads.

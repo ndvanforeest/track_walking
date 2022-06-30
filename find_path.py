@@ -20,8 +20,18 @@ vriezeveen = 52.4131, 6.6284
 vorden = 52.1038, 6.3126
 babberich = 51.9061, 6.1143
 pieterberg = 50.8265, 5.6869
-start = noorderplantsoen
-finish = pieterberg
+almelo_van_der_valk = 52.35611, 6.66668
+hengelo_station = 52.26227, 6.79504
+delden_station = 52.2603, 6.71479
+almelo_de_riet = 52.3407, 6.6783
+goor_station = 52.23054, 6.58517
+
+start = hengelo_station
+finish = goor_station
+# finish = delden_station
+# start = noorderplantsoen
+# finish = midlaren
+
 via = [vorden, babberich]
 via = []
 # via = [haren_roeiclub, midlaren]
@@ -49,7 +59,8 @@ def find_node_nearby_gps(point):
     cur.execute(sql)
     nearby = ",".join(str(n[0]) for n in cur.fetchall())
     sql = (
-        "SELECT node_id, latitude, longitude FROM nodes " f"WHERE node_id IN ({nearby});"
+        "SELECT node_id, latitude, longitude FROM nodes "
+        f"WHERE node_id IN ({nearby});"
     )
     cur.execute(sql)
     res = np.array([[n[0], n[1], n[2]] for n in cur.fetchall()])
@@ -80,10 +91,10 @@ def get_shortest_path():
     best = []
     for p, q in zip(path[:-1], path[1:]):
         best += nx.shortest_path(C, p, q, weight="cost")
-    return C.subgraph(best)
+    return C.subgraph(best), best
 
 
-def re_engineer_path(B):
+def re_engineer_path(B, path):
     north, west, south, east = get_containg_rectangle(A_to_B)
 
     trunk_tags = ",".join(str(t) for t in c.trunk_tags)
@@ -102,13 +113,13 @@ def re_engineer_path(B):
         node_from, node_to, length, cost, tag = e
         G.add_edge(node_from, node_to, cost=cost, tag=tag, length=length)
 
-    best = []
-    for p, q in B.edges():
-        best += nx.shortest_path(G, p, q, weight="cost")
-    return G.subgraph(best)
+    longer_path = []
+    for p, q in zip(path[:-1], path[1:]):  # B.edges():
+        longer_path += nx.shortest_path(G, p, q, weight="cost")
+    return G.subgraph(longer_path), longer_path
 
 
-def plot_path(G):
+def plot_path(G, fname):
     res = ",".join(str(n) for n in G.nodes())
     cur.execute(
         f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
@@ -121,12 +132,18 @@ def plot_path(G):
     zoom = 12
     myMap = folium.Map(location=[mean_lat, mean_lon], zoom_start=zoom)
 
-    colors = {i: c.tag_to_color[t] for i, t in enumerate(c.tags)}
+    colors = {
+        i: c.tag_to_color[t]
+        for i, t in enumerate(c.tags)
+        if t in c.tag_to_color
+    }
     for m, n, data in G.edges(data=True):
         p, q = nodes[m], nodes[n]
         color = colors[data["tag"]]
-        folium.PolyLine([p, q], color=color, weight=3.5, opacity=1).add_to(myMap)
-    myMap.save("map.html")
+        folium.PolyLine([p, q], color=color, weight=3.5, opacity=1).add_to(
+            myMap
+        )
+    myMap.save(fname)
 
 
 def print_path_stats(G):
@@ -134,7 +151,11 @@ def print_path_stats(G):
     for m, n, data in G.edges(data=True):
         dist[data["tag"]] += data["length"]
 
-    colors = {i: c.tag_to_color[t] for i, t in enumerate(c.tags)}
+    colors = {
+        i: c.tag_to_color[t]
+        for i, t in enumerate(c.tags)
+        if t in c.tag_to_color
+    }
     tot = sum(v for v in dist.values())
     for k, v in sorted(dist.items(), key=lambda x: -x[1]):
         v /= tot
@@ -146,11 +167,64 @@ def print_path_stats(G):
     print(f"total lenght: {tot} km")
 
 
+def write_path_to_gpx(path, fname):
+    res = ",".join(str(n) for n in path)
+    cur.execute(
+        f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
+    )
+    nodes = {ID: (la, lo) for ID, la, lo in cur.fetchall()}
+
+    import gpxpy
+
+    gpx = gpxpy.gpx.GPX()
+
+    # Create first track in our GPX:
+    gpx_track = gpxpy.gpx.GPXTrack()
+    gpx.tracks.append(gpx_track)
+
+    # Create first segment in our GPX track:
+    gpx_segment = gpxpy.gpx.GPXTrackSegment()
+    gpx_track.segments.append(gpx_segment)
+
+    for n in path:
+        p = nodes[n]
+        gpx_segment.points.append(
+            gpxpy.gpx.GPXTrackPoint(p[0], p[1])  # , elevation=1234)
+        )
+    with open(fname, "w") as fp:
+        fp.write(gpx.to_xml())
+
+
+def write_path_to_kml(path=[], fname=""):
+    import simplekml
+
+    res = ",".join(str(n) for n in path)
+    cur.execute(
+        f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
+    )
+    nodes = {ID: (la, lo) for ID, la, lo in cur.fetchall()}
+
+    path_nodes = []
+    for n in path:
+        p = nodes[n]
+        path_nodes.append((p[1], p[0]))  # lon, lat
+
+    kml = simplekml.Kml()
+    ls = kml.newlinestring(name='My walk')
+    ls.description = "pieter zand pad app"
+    ls.coords = path_nodes
+    ls.style.linestyle.width = 5
+    ls.style.linestyle.color = simplekml.Color.blue
+    kml.save("my_walk.kml")
+
+
 def main():
-    B = get_shortest_path()
-    B = re_engineer_path(B)
-    plot_path(B)
+    B, path = get_shortest_path()
+    B, path = re_engineer_path(B, path)
+    plot_path(B, fname="map.html")
     print_path_stats(B)
+    # write_path_to_gpx(path, fname="mypath.gpx")
+    write_path_to_kml(path, fname="mypath.kml")
 
 
 if __name__ == '__main__':
