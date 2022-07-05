@@ -32,8 +32,6 @@ tynaarlo_noord = 53.0787, 6.6204
 zuidlaarderweg = 53.0829, 6.6419
 noordlaarderbos_midden = 53.1073, 6.6435
 westlaren_coop = 53.0861, 6.6678
-fietspad1 = 53.10136, 6.62681
-fietspad2 = 53.10444, 6.63333
 trein = 53.08304, 6.62737
 natuurpad = 53.0807858, 6.6223451
 okkerveen = 53.10346, 6.6291
@@ -47,10 +45,10 @@ via = [
     okkerveen,
     noordlaarderbos_midden,
     noordlaarderbos,
+    westlaren_coop,
 ]  # , westlaren_coop]
 # via = [noordlaarderbos, westlaren_coop, tynaarlo_noord, natuurpad]
 # via = [fietspad1, fietspad2]
-# via = []
 # via = [haren_roeiclub, midlaren]
 # via = [haren_roeiclub]
 A_to_B = [start] + via + [finish]
@@ -65,9 +63,9 @@ def get_containg_rectangle(path, eps=0.1):
 
 
 def find_node_nearby_gps(point):
-    north, west, south, east = get_containg_rectangle([point], eps=0.005)
+    north, west, south, east = get_containg_rectangle([point], eps=0.05)
     sql = (
-        "SELECT node_from FROM compressed "
+        "SELECT node_from FROM edges "
         "WHERE node_from IN "
         "(SELECT node_id FROM nodes "
         f"WHERE latitude BETWEEN {south} AND {north} "
@@ -90,34 +88,10 @@ def find_node_nearby_gps(point):
 def get_shortest_path():
     north, west, south, east = get_containg_rectangle(A_to_B)
 
-    sql = (
-        "SELECT  node_from, node_to, cost "
-        "FROM compressed "
-        "WHERE node_from IN "
-        "(SELECT node_id FROM nodes "
-        f"WHERE latitude BETWEEN {south} AND {north} "
-        f"AND longitude BETWEEN {west} AND {east}); "
-    )
-    cur.execute(sql)
-    C = nx.Graph()  # compressed graph
-    for e in cur.fetchall():
-        node_from, node_to, cost = e
-        C.add_edge(node_from, node_to, cost=cost)
-
-    path = [find_node_nearby_gps(p) for p in A_to_B]
-    best = []
-    for p, q in zip(path[:-1], path[1:]):
-        best += nx.shortest_path(C, p, q, weight="cost")
-    return C.subgraph(best), best
-
-
-def re_engineer_path(B, path):
-    north, west, south, east = get_containg_rectangle(A_to_B)
-
     trunk_tags = ",".join(str(t) for t in c.trunk_tags)
     sql = (
         "SELECT  node_from, node_to, length, cost, tag "
-        "FROM highways "
+        "FROM edges "
         f"WHERE tag NOT IN ({trunk_tags}) "
         "AND node_from IN "
         "(SELECT node_id FROM nodes "
@@ -130,10 +104,11 @@ def re_engineer_path(B, path):
         node_from, node_to, length, cost, tag = e
         G.add_edge(node_from, node_to, cost=cost, tag=tag, length=length)
 
-    longer_path = []
-    for p, q in zip(path[:-1], path[1:]):  # B.edges():
-        longer_path += nx.shortest_path(G, p, q, weight="cost")
-    return G.subgraph(longer_path), longer_path
+    path = [find_node_nearby_gps(p) for p in A_to_B]
+    best = []
+    for p, q in zip(path[:-1], path[1:]):
+        best += nx.shortest_path(G, p, q, weight="cost")
+    return G.subgraph(best), best
 
 
 def plot_path(G, fname):
@@ -248,7 +223,7 @@ def write_path_to_kml(path=[], fname=""):
 
 def main():
     B, path = get_shortest_path()
-    B, path = re_engineer_path(B, path)
+    # B, path = re_engineer_path(B, path)
     plot_path(B, fname="map.html")
     print_path_stats(B)
     # write_path_to_gpx(path, fname="mypath.gpx")

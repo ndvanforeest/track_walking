@@ -1,32 +1,31 @@
 #!/usr/bin/env python
 import sqlite3
 import osmium
-import networkx as nx
 
 import common as c
 
 
 def drop_table():
-    cur.execute('''DROP TABLE highways;''')
-    conn.commit()
+    cur.execute('''DROP TABLE edges;''')
+    connection.commit()
 
 
 def make_table():
     sql = (
-        "CREATE TABLE highways ("
+        "CREATE TABLE edges ("
         "id INTEGER PRIMARY KEY,"
         "node_from int,"
         "node_to int,"
         "tag int,"
-        "length int default 0,"
+        "length real default 0.,"
         "near_trunk int default 0,"
-        "cost int default 0,"
+        "cost real default 0.,"
         "UNIQUE(node_from, node_to)"
         ");"
     )
 
     cur.execute(sql)
-    conn.commit()
+    connection.commit()
 
 
 class Highway_Handler(osmium.SimpleHandler):
@@ -40,7 +39,9 @@ class Highway_Handler(osmium.SimpleHandler):
     def way(self, w):
         tag = w.tags.get("highway")
         if tag in self.tag_str_to_idx:
-            s = [w.nodes[i].ref for i in range(len(w.nodes))] + [self.tag_str_to_idx[tag]]
+            s = [w.nodes[i].ref for i in range(len(w.nodes))] + [
+                self.tag_str_to_idx[tag]
+            ]
             self.highways.append(s)
 
 
@@ -49,25 +50,16 @@ def read_write_highway_data(fname):
     h.apply_file(fname)
     print("reading done")
 
-    # Remove all highway nodes that are not connected
-    # to the largest component of the highway graph
-    # because such nodes can never appear in any sensible route.
-    G = nx.Graph()
     for e in h.highways:
-        G.add_edges_from(zip(e[:-2], e[1:-1]), tag=e[-1])
-    largest = max(nx.connected_components(G), key=len)
-    G.remove_nodes_from(G.nodes() - largest)
-    print("pruning done")
-
-    for e in G.edges:
-        tag = G.get_edge_data(*e)['tag']
-        sql = (
-            "INSERT OR IGNORE INTO highways("
-            " node_from, node_to, tag) VALUES"
-            f" ({e[0]}, {e[1]}, {tag})"
-        )
-        cur.execute(sql)
-    conn.commit()
+        tag = e[-1]
+        for m, n in zip(e[:-2], e[1:-1]):
+            sql = (
+                "INSERT OR IGNORE INTO edges("
+                " node_from, node_to, tag) VALUES"
+                f" ({m}, {n}, {tag})"
+            )
+            cur.execute(sql)
+    connection.commit()
     print("writing done")
 
 
@@ -89,7 +81,7 @@ def main():
 
 
 if __name__ == '__main__':
-    conn = sqlite3.connect(c.db_name)
-    cur = conn.cursor()
+    connection = sqlite3.connect(c.db_name)
+    cur = connection.cursor()
     main()
-    conn.close()
+    connection.close()

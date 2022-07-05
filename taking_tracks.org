@@ -168,8 +168,8 @@ When adding or removing a province, the steps above have to redone.
 ./read_write_highways.py
 ./read_write_node_coordinates.py
 ./compute_edge_lengths.py
-./compress.py
 ./compute_edge_costs.py
+./compress.py
 #+end_src
 
 #+RESULTS:

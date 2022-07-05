@@ -55,25 +55,24 @@ trunks = {
 edge_tags = {t: i for i, t in enumerate(tags)}
 trunk_tags = set(edge_tags[t] for t in trunks)
 
-factor = 2
 cost_factor = {
     'steps': 1,
     'track': 1,
-    'path': 1.2,
-    'bridleway': factor,
-    'footway': factor,
-    'cycleway': 1.5 * factor,
-    'residential': 1.3 * factor,
-    'unclassified': 1.2 * factor,
-    'living_street': 1.2 * factor,
-    'pedestrian': 1.2 * factor,
-    'tertiary': 1.5 * factor,
-    'tertiary_link': 1.5 * factor,
-    'secondary': 1.5 * factor,
-    'secondary_link': 1.5 * factor,
-    'primary': 100 * factor,
-    'primary_link': 100 * factor,
-    'service': 2 * factor,
+    'path': 1,
+    'bridleway': 1,
+    'footway': 1,
+    'cycleway': 1.5,
+    'residential': 1.3,
+    'unclassified': 2,
+    'living_street': 2,
+    'pedestrian': 1.2,
+    'tertiary': 2,
+    'tertiary_link': 2,
+    'secondary': 3,
+    'secondary_link': 3,
+    'primary': 100,
+    'primary_link': 100,
+    'service': 2,
 }
 
 near_trunk_cost = 3

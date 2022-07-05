@@ -2,7 +2,6 @@
 
 import sqlite3
 import osmium
-import networkx as nx
 
 import common as c
 
@@ -38,9 +37,9 @@ class Node_Handler(osmium.SimpleHandler):
 
 def read_write_node_coordinates(fname):
     # We only need the  coordinates of nodes that at either side of a highway edge.
-    cur.execute('SELECT node_to FROM highways')
+    cur.execute('SELECT node_to FROM edges')
     nodes = set(n[0] for n in cur.fetchall())
-    cur.execute('SELECT node_from FROM highways')
+    cur.execute('SELECT node_from FROM edges')
     nodes.update(set(n[0] for n in cur.fetchall()))
 
     nodes = Node_Handler(nodes)
