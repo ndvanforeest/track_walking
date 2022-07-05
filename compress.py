@@ -17,6 +17,7 @@ def compress():
     for e in cur.fetchall():
         node_from, node_to, cost = e
         G.add_edge(node_from, node_to, cost=cost)
+    return G  # don't compress
 
     # dead ends can be removed straight away
     print(G.number_of_nodes())

@@ -25,15 +25,32 @@ hengelo_station = 52.26227, 6.79504
 delden_station = 52.2603, 6.71479
 almelo_de_riet = 52.3407, 6.6783
 goor_station = 52.23054, 6.58517
-
-start = hengelo_station
-finish = goor_station
+waterbedrijf = 53.1307, 6.6216
+noordlaarderbos = 53.1007, 6.6576
+noordlaarderbos_noord = 53.12017, 6.63813
+tynaarlo_noord = 53.0787, 6.6204
+zuidlaarderweg = 53.0829, 6.6419
+noordlaarderbos_midden = 53.1073, 6.6435
+westlaren_coop = 53.0861, 6.6678
+fietspad1 = 53.10136, 6.62681
+fietspad2 = 53.10444, 6.63333
+trein = 53.08304, 6.62737
+natuurpad = 53.0807858, 6.6223451
+okkerveen = 53.10346, 6.6291
+start = finish = tynaarlo_noord
 # finish = delden_station
 # start = noorderplantsoen
 # finish = midlaren
 
-via = [vorden, babberich]
-via = []
+# via = [noordlaarderbos, zuidlaarderweg]
+via = [
+    okkerveen,
+    noordlaarderbos_midden,
+    noordlaarderbos,
+]  # , westlaren_coop]
+# via = [noordlaarderbos, westlaren_coop, tynaarlo_noord, natuurpad]
+# via = [fietspad1, fietspad2]
+# via = []
 # via = [haren_roeiclub, midlaren]
 # via = [haren_roeiclub]
 A_to_B = [start] + via + [finish]
@@ -147,24 +164,35 @@ def plot_path(G, fname):
 
 
 def print_path_stats(G):
-    dist = defaultdict(float)
+    if not G:
+        print("The graph is empty")
+        quit()
+    length = defaultdict(float)
     for m, n, data in G.edges(data=True):
-        dist[data["tag"]] += data["length"]
+        length[data["tag"]] += data["length"]
+    tot_length = sum(length.values())
+
+    cost = defaultdict(float)
+    for m, n, data in G.edges(data=True):
+        cost[data["tag"]] += data["cost"]
+    tot_cost = sum(cost.values())
 
     colors = {
         i: c.tag_to_color[t]
         for i, t in enumerate(c.tags)
         if t in c.tag_to_color
     }
-    tot = sum(v for v in dist.values())
-    for k, v in sorted(dist.items(), key=lambda x: -x[1]):
-        v /= tot
-        v = round(100 * v)
-        if v > 0:
-            print(f"{c.tags[k]:<13}{colors[k]:<10}{v:2d}%")
 
-    tot = round(tot / 1000)
-    print(f"total lenght: {tot} km")
+    for k, v in sorted(length.items(), key=lambda x: -x[1]):
+        v = round(100 * v / tot_length)
+        Cost = round(100 * cost[k] / tot_cost)
+        if v > 0:
+            print(
+                f"{c.tags[k]:<13}{colors[k]:<10}{v:>4d}%{Cost:>4d}%{int(cost[k]):>7}"
+            )
+
+    tot_length = round(tot_length / 1000)
+    print(f"total lenght: {tot_length:<3d} km, total cost: {int(tot_cost):<5d}")
 
 
 def write_path_to_gpx(path, fname):

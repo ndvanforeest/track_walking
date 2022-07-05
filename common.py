@@ -13,6 +13,10 @@ provinces = [
     # "utrecht",
 ]
 
+provinces = [
+    "drenthe",
+]
+
 tags = [
     'track',
     'footway',
@@ -88,10 +92,7 @@ tag_to_color = {
     'tertiary': "orange",
     'tertiary_link': "orange",
     'secondary': "red",
-    'primary': "red",
     'secondary_link': "red",
-    'motorway': "red",
-    'motorway_link': "red",
     'primary_link': "red",
     'service': "black",
 }
