@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 from math import sqrt, cos, pi
+import numpy as np
+from sklearn.neighbors import KDTree
 import osmium
 import networkx as nx
 
@@ -121,9 +123,24 @@ def compute_edge_length(db):
         ids.append(ID)
         lengths.append(length)
 
-    db.update("edges", ID=ids, length=lengths)
+    sql = "UPDATE edges SET length=? WHERE ID=?"
+    db.update(sql, zip(lengths, ids))
     db.commit()
     t.toc()
+
+
+def compute_near_trunk(db):
+    X = np.array(db.get_trunk_coordinates())
+    tree = KDTree(X)
+    # Load the nodes and mark nodes near to a trunk
+    nodes = np.array(db.get_node_info("node_id", "latitude", "longitude"))
+    eps = 0.005  # about 500 meters from a trunk
+    hit = tree.query_radius(nodes[:, [1, 2]], r=eps, count_only=True)
+    near_to_trunk = nodes[hit > 0][:, 0].astype(int)
+    ones = [1] * len(near_to_trunk)
+    sql = f"UPDATE edges SET near_trunk=? WHERE node_from=?"
+    db.update(sql, zip(ones, near_to_trunk.tolist()))
+    db.commit()
 
 
 def cleanup(db):
@@ -137,13 +154,15 @@ def main():
     db = DB()
     # cleanup(db)
 
-    for province in common.provinces:
-        fname = common.data_dir + province + "-latest.osm.pbf"
-        print(fname)
-        read_write_highway_data(fname, db)
-        read_write_node_coordinates(fname, db)
+    # for province in common.provinces:
+    #     fname = common.data_dir + province + "-latest.osm.pbf"
+    #     print(fname)
+    #     read_write_highway_data(fname, db)
+    #     read_write_node_coordinates(fname, db)
 
     compute_edge_length(db)
+    compute_near_trunk(db)
+
     db.close_connection()
 
 
