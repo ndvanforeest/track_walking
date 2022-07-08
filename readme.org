@@ -65,16 +65,7 @@ To limit the memory usage, =osmium= offers a quite specific API.
 After having read the nodes, we don't store it right away in a sqlite database.
 First we form a graph $G$ of the data and remove all nodes that are not in the largest connected component of $G$, as such nodes cannot be reached from any publicly accessible road.
 
-The file to run is this.
-#+begin_src shell
-python read_write_highways.py
-#+end_src
-
 Once we have all relevant highway nodes, we need to read the gps coordinates, i.e., the latitude and longitude, of each node. We store this information also in the sql database.
-
-#+begin_src shell
-python read_write_node_coordinates.py
-#+end_src
 
 We need to run these programs only once.
 
@@ -87,14 +78,6 @@ Clearly, the cost of an edge should be a function of its length and its tag.
 As the edge length does not depend on our preference for a certain type of highway, we compute the edge lengths in a separate program, which also only has to run once.
 
 To obtain the length (in meters) of an edge between to two gps coordinates, we use the haversine formula.
-To save space we store the length as an int.
-There is slight problem with this choice, however.
-Some edges turn out to have a length of less than 0.5 m, which will become zero after rounding.
-To prevent this, we take as length ~max(int(l + 0.5), 1)~ where ~l~ is the result of the haversine formula.
-
-#+begin_src shell
-python compute_edge_lengths.py
-#+end_src
 
 * Setting edge costs
 
@@ -114,10 +97,6 @@ If this number happens to be at least one, we classify the non trunk node as nea
 
 Overall, tuning the costs required a bit more work than I anticipated.
 My best attempt is in =common.py=.
-
-#+begin_src python
-python compute_edge_costs.py
-#+end_src
 
 * Compressing the graph
 
@@ -164,27 +143,9 @@ python compress.py
 When adding or removing a province, the steps above have to redone.
 
 
-#+begin_src shell
-./read_write_highways.py
-./read_write_node_coordinates.py
-./compute_edge_lengths.py
-./compute_edge_costs.py
-./compress.py
+#+begin_src shell :results none
+python port_info_to_database.py
 #+end_src
-
-#+RESULTS:
-| /home/nicky/tmp/drenthe-latest.osm.pbf |      |
-|                                reading | done |
-|                                pruning | done |
-|                                writing | done |
-| /home/nicky/tmp/drenthe-latest.osm.pbf |      |
-|                                 532985 |      |
-|                                 482691 |      |
-|                                  90281 |      |
-|                                  85482 |      |
-|                                  84428 |      |
-|                                  84141 |      |
-|                                  84052 |      |
 
 
 * The best path in the compressed graph
@@ -195,9 +156,9 @@ We assume that $A$ and $B$ are specified as gps coordinates.
 If you don't know the gps coordinates, go to [[https://www.openstreetmap.org/]], look up your point ~A~ on the map, right click with the mouse and select ~show address~.
 In the pop up box you'll see the gps coordinates.
 
-Since $C$ has fewer nodes than $G$, it need not contain $A$ and $B$.
-To identify the node in $C$ that is closest to $A$, we again use a nearest neighbor tree.
-For this we first select the nodes in $C$ within a small square around $A$; this square is simple to obtain from =sqlite=.
+It might happen that $G$ does not contain $A$ and $B$.
+To identify the node in $G$ that is closest to $A$, we again use a nearest neighbor tree.
+For this we first select the nodes in $G$ within a small square around $A$; this square is simple to obtain from =sqlite=.
 Then we build the tree with =scikit= from the nodes in the square and query for the node that is nearest to $A$.
 (Finding the nearest node with =sqlite= is much less easy.)
 
