@@ -197,8 +197,15 @@ def compute_cost(db):
 
 def main():
     db = DB()
-    # db.rebuild()
-    # basic_setup(db)
+
+    build_new_database_p = False
+    if build_new_database_p:
+        db.rebuild()
+
+    fill_database_with_new_info_p = False
+    if fill_database_with_new_info_p:
+        basic_setup(db)
+
     compute_cost(db)
 
     db.close_connection()
