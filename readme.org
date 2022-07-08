@@ -1,15 +1,8 @@
 #+title: How to avoid cars and bikes when walking from A to B
 #+author: Nicky van Foreest
-#+date: 2022:03:24
+#+date: 2022:03:24, 2022:07:08
 
 #+LATEX_HEADER: \usepackage{standardStyle}
-
-* TODO
-
-- astar for faster routing algorithm. This is also an example of recursion and flooding.
-- k nearest neighbor with many  forest nodes, i.e, k big, in the neighborhood of a track node are a good sign (that you are in a forest). This may improve cost setting.
-
-
 
 * Introduction
 
@@ -19,8 +12,8 @@ This made me wonder whether I could use data from OpenStreetMap and the shortest
 This question lead to the project below.
 
 In a mathematical sense the problem is simple: Make a graph of all roads, tracks, small roads, and so on of the Netherlands.
-Next assign costs to each edge such that tracks have the lowest cost, small streets have slightly higher cost.
-And, I want to add extra costs to paths that lie near to motorways.
+Next assign costs to each edge such that tracks have the lowest cost, small streets have slightly higher cost, and so on.
+I also want to add extra costs to paths that lie near to motorways.
 With these costs given, the best path from $A$ to $B$ is just the path with the least cost.
 However, even though the Netherlands is (perceived to be) a small country, a graph of even part of our green country contains so many nodes and edges that 16 GB RAM does not suffice to run the shortest path algorithm with the =networkx= library.
 Thus, finding the best path confronted me with some interesting problems.
@@ -31,12 +24,8 @@ Next, we'll use =osmium= to unpack data from OpenStreetMap, =sqlite= to store an
 Finally, with ~folium~ we plot the best path in a HTML page so that we can admire the best path in a browser.
 We also write the path to a =gpx= file and a =kml= file so that we can import it in a mobile phone.
 
-The steps to find the cheapest path depend on each other.
-Some of these steps only have to be done once, such as the computation of road length, but others not.
-For this reason I put the steps in different python files.
-
-Overall I don't claim that I improved the Pieterpad; this path has been improved for many years by /humans/ (/not/ computers).
-However, I find the code useful for making my own routes, for instance, the nicest route along all addresses at which my wife and I lived with our parents and children.
+Note that I don't claim that this code can be used to  improve the Pieterpad; this path has been improved for many years by /humans/ (/not/ computers).
+However, I find the code useful for making my own routes, for instance, the nicest route along all addresses at which my wife and I lived,  as a child with our parents,  and as parents with our own children.
 
 * Getting the data
 
@@ -61,13 +50,12 @@ The nodes in a highway list are supposed to be connected.
 
 We use =osmium= to read the data from a =.pbf= file.
 To limit the memory usage, =osmium= offers a quite specific API.
-(Consult it for the details.)
-After having read the nodes, we don't store it right away in a sqlite database.
-First we form a graph $G$ of the data and remove all nodes that are not in the largest connected component of $G$, as such nodes cannot be reached from any publicly accessible road.
+(Consult the documentation for details.)
+
+After having read the node data, we don't store it right away in a sqlite database.
+First we form a graph $G$ of the data and remove all nodes that are not in the largest connected component of $G$;  such nodes cannot be reached from any publicly accessible road.
 
 Once we have all relevant highway nodes, we need to read the gps coordinates, i.e., the latitude and longitude, of each node. We store this information also in the sql database.
-
-We need to run these programs only once.
 
 * Computing edge lengths
 
@@ -75,15 +63,13 @@ The best path from $A$ to $B$ depends on the costs of the highways (in the OpenS
 As the highways form edges in a graph, we are henceforth concerned with edge costs.
 
 Clearly, the cost of an edge should be a function of its length and its tag.
-As the edge length does not depend on our preference for a certain type of highway, we compute the edge lengths in a separate program, which also only has to run once.
-
-To obtain the length (in meters) of an edge between to two gps coordinates, we use the haversine formula.
+As the edge length does not depend on our preference for a certain type of highway, we compute that first with a simplified haversine formula. (Perhaps someday I type in the maths that underlies the approximation.)
 
 * Setting edge costs
 
 If we would follow the shortest path, we will walk many kilometers on primary and secondary roads.
 To prevent this, we assign to each edge a cost which is the product of the edge length and a factor that depends on the highway tag.
-A highway tagged as ~track~ gets a factor of 1; a factor of zero will result in path with zero-cost cycles.
+A highway tagged as ~track~ gets a factor of 1 (Don't use a factor of zero as this  result in path with zero-cost cycles.)
 Highways with other tags get a cost factor of at least 1, and often higher.
 
 Using an extra factor seems to be OK, but it turns out that we can obtain paths with tracks that lie next to trunks.
@@ -99,6 +85,8 @@ Overall, tuning the costs required a bit more work than I anticipated.
 My best attempt is in =common.py=.
 
 * Compressing the graph
+
+The text in this section is outdated for the moment (2202:07:08). One reason to compress the graph was to let =networkx= a bit faster. However, I think it's better to use another library altogether for larger networks, for instance =networkit=. As I did not try this yet, it might be that I have to compress after all. This is the next step in the project.
 
 So far so good.
 In fact, all of the above suffices to find optimal paths on small graphs.
@@ -132,28 +120,17 @@ We refer to the compressed graph as $C$.
 
 Clearly, only after computing all the edge costs, we can compute the compressed graph $C$.
 
+* The code
 
-#+begin_src shell
-python compute_edge_costs.py
-python compress.py
-#+end_src
-
-* Do it all at once
-
-When adding or removing a province, the steps above have to redone.
+The code to run the above is in =port_info_to_database.py=.
 
 
-#+begin_src shell :results none
-python port_info_to_database.py
-#+end_src
+* The best path
 
-
-* The best path in the compressed graph
-
-Now it's time to find the cheapest path from $A$ to $B$ on the compressed graph $C$.
+Now it's time to find the cheapest path from $A$ to $B$
 
 We assume that $A$ and $B$ are specified as gps coordinates.
-If you don't know the gps coordinates, go to [[https://www.openstreetmap.org/]], look up your point ~A~ on the map, right click with the mouse and select ~show address~.
+If you don't know the gps coordinates of points $A$ and $B$, go to [[https://www.openstreetmap.org/]], look up your point ~A~ on the map, right click with the mouse and select ~show address~.
 In the pop up box you'll see the gps coordinates.
 
 It might happen that $G$ does not contain $A$ and $B$.
@@ -165,16 +142,10 @@ Then we build the tree with =scikit= from the nodes in the square and query for 
 The shortest path algorithm in =networkx= provides us with the cheapest path.
 However, again to limit the number of nodes in the search graph we specify a thickened rectangle around the points $A$ and $B$ and use only the nodes in this rectangle in the graph.
 
+The code is in =find_path.py= and it outputs the path to =html= with =folium=, to =gpx= and to =kml=.
 
-* Retrieve the full best path
-The plot of the best path on the compressed graph $C$ is pretty rough as it does not follow all bends of the highways on the map.
-To obtain a visually nice path, we re-engineer the best path on the full graph $G$ based on the best path $B$ in $C$.
-This is remarkably easy.
-Take any adjacent points in $B$, and compute the cheapest path in $G$ between these points.
-Then connect all such segments of $G$ to form the overall best path.
+* Things to TODO
 
-#+begin_src shell
-python find_path.py
-#+end_src
-
-The script =find_path.py= outputs  the path to =html= file with =folium=, to =gpx= and to =kml=.
+- use =networkit= to find the shortest path.
+- A-star for faster routing algorithm. This is also an example of recursion and flooding.
+- k nearest neighbor with many  forest nodes, i.e, k big, in the neighborhood of a track node are a good sign (that you are in a forest). This may improve cost setting.
