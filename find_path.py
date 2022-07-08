@@ -25,33 +25,34 @@ hengelo_station = 52.26227, 6.79504
 delden_station = 52.2603, 6.71479
 almelo_de_riet = 52.3407, 6.6783
 goor_station = 52.23054, 6.58517
-waterbedrijf = 53.1307, 6.6216
 noordlaarderbos = 53.1007, 6.6576
-noordlaarderbos_noord = 53.12017, 6.63813
 tynaarlo_noord = 53.0787, 6.6204
-zuidlaarderweg = 53.0829, 6.6419
 noordlaarderbos_midden = 53.1073, 6.6435
+westlaren_weg = 53.09177, 6.66185
 westlaren_coop = 53.0861, 6.6678
-trein = 53.08304, 6.62737
-natuurpad = 53.0807858, 6.6223451
 okkerveen = 53.10346, 6.6291
-start = finish = tynaarlo_noord
-# finish = delden_station
-# start = noorderplantsoen
-# finish = midlaren
 
-# via = [noordlaarderbos, zuidlaarderweg]
-via = [
+wandeling_1 = [
+    tynaarlo_noord,
     okkerveen,
     noordlaarderbos_midden,
     noordlaarderbos,
-    westlaren_coop,
-]  # , westlaren_coop]
-# via = [noordlaarderbos, westlaren_coop, tynaarlo_noord, natuurpad]
-# via = [fietspad1, fietspad2]
-# via = [haren_roeiclub, midlaren]
-# via = [haren_roeiclub]
-A_to_B = [start] + via + [finish]
+    westlaren_weg,
+]
+A_to_B = wandeling_1
+
+roderwolde = 53.1678, 6.4690
+zanddijk = 53.16590, 6.49986
+eelderwolde = 53.1729, 6.5471
+madijk = 53.16450, 6.54072
+peizerwolde_albert_heijn = 53.14709, 6.56690
+voetpad = 53.14446, 6.53776
+wandeling_2 = [zanddijk, madijk, peizerwolde_albert_heijn, voetpad, zanddijk]
+
+A_to_B = wandeling_2
+
+
+# A_to_B = [start] + via + [finish]
 
 
 def get_containg_rectangle(path, eps=0.1):
@@ -90,7 +91,7 @@ def get_shortest_path():
 
     trunk_tags = ",".join(str(t) for t in c.trunk_tags)
     sql = (
-        "SELECT  node_from, node_to, length, cost, tag "
+        "SELECT  node_from, node_to, length, cost, tag, near_trunk, near_primary "
         "FROM edges "
         f"WHERE tag NOT IN ({trunk_tags}) "
         "AND node_from IN "
@@ -101,8 +102,16 @@ def get_shortest_path():
     cur.execute(sql)
     G = nx.Graph()
     for e in cur.fetchall():
-        node_from, node_to, length, cost, tag = e
-        G.add_edge(node_from, node_to, cost=cost, tag=tag, length=length)
+        node_from, node_to, length, cost, tag, near_trunk, near_primary = e
+        G.add_edge(
+            node_from,
+            node_to,
+            cost=cost,
+            tag=tag,
+            length=length,
+            near_trunk=near_trunk,
+            near_primary=near_primary,
+        )
 
     path = [find_node_nearby_gps(p) for p in A_to_B]
     best = []
@@ -121,7 +130,7 @@ def plot_path(G, fname):
     # location for the map
     mean_lat = sum(v[0] for v in nodes.values()) / len(nodes)
     mean_lon = sum(v[1] for v in nodes.values()) / len(nodes)
-    zoom = 12
+    zoom = 13
     myMap = folium.Map(location=[mean_lat, mean_lon], zoom_start=zoom)
 
     colors = {
@@ -159,15 +168,28 @@ def print_path_stats(G):
     }
 
     for k, v in sorted(length.items(), key=lambda x: -x[1]):
-        v = round(100 * v / tot_length)
+        perc = round(100 * v / tot_length)
         Cost = round(100 * cost[k] / max(tot_cost, 1))
         if v > 0:
             print(
-                f"{c.tags[k]:<13}{colors[k]:<10}{v:>4d}%{Cost:>4d}%{int(cost[k]):>7}"
+                f"{c.tags[k]:<13}{colors[k]:<10}{int(v):>4d}{perc:>4d}%{int(cost[k]):>7}{Cost:>4d}%"
             )
 
-    tot_length = round(tot_length / 1000)
-    print(f"total lenght: {tot_length:<3d} km, total cost: {int(tot_cost):<5d}")
+    print(
+        f"total lenght: {int(tot_length):<6d} m, total cost: {int(tot_cost):<5d}"
+    )
+    primary = sum(
+        data["length"]
+        for m, n, data in G.edges(data=True)
+        if data["near_primary"] == 1
+    )
+    print(f"Near primary: {int(primary)}")
+    trunk = sum(
+        data["length"]
+        for m, n, data in G.edges(data=True)
+        if data["near_trunk"] == 1
+    )
+    print(f"Near trunk: {int(trunk)}")
 
 
 def write_path_to_gpx(path, fname):

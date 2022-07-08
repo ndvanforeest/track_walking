@@ -126,21 +126,7 @@ def compute_edge_length(db):
     t.toc()
 
 
-# def set_trunk_tags(db):
-#     trunk_tags = ",".join(str(t) for t in common.trunk_tags)
-#     X = np.array(db.get_tagged_coordinates(trunk_tags))
-#     tree = KDTree(X)
-#     # Load the nodes and mark nodes near to a trunk
-#     nodes = np.array(db.get_node_info("node_id", "latitude", "longitude"))
-#     eps = 0.005  # about 500 meters from a trunk
-#     hit = tree.query_radius(nodes[:, [1, 2]], r=eps, count_only=True)
-#     near_to_trunk = nodes[hit > 0][:, 0].astype(int)
-#     ones = [1] * len(near_to_trunk)
-#     sql = f"UPDATE edges SET near_trunk=? WHERE node_from=?"
-#     db.update(sql, zip(ones, near_to_trunk.tolist()))
-
-
-def set_tags_on_egdes(db, tags, eps):
+def set_tags_on_egdes(db, Type="trunk", tags={}, eps=0.005):
     X = np.array(db.get_tagged_coordinates(tags))
     tree = KDTree(X)
     # Load the nodes and mark nodes near to a trunk
@@ -148,23 +134,21 @@ def set_tags_on_egdes(db, tags, eps):
     hit = tree.query_radius(nodes[:, [1, 2]], r=eps, count_only=True)
     near_nodes = nodes[hit > 0][:, 0].astype(int)
     ones = [1] * len(near_nodes)
-    sql = "UPDATE edges SET near_trunk=? WHERE node_from=?"
+    sql = f"UPDATE edges SET near_{Type}=? WHERE node_from=?"
     db.update(sql, zip(ones, near_nodes.tolist()))
 
 
 def tag_ugly_edges(db):
     # Avoid walking in the neighborhood of trunks and primary highways
     # eps = 0.005  is about 500 meters from a trunk
-    trunk_tags = ",".join(str(t) for t in common.trunk_tags)
-    set_tags_on_egdes(db, trunk_tags, eps=0.005)
+    set_tags_on_egdes(db, "trunk", common.trunk_tags, eps=0.001)
 
-    # primary_tags = ",".join(str(t) for t in common.trunk_tags)
     # stay clear about 20 meters from secondary
-    # set_tags_on_egdes(db, primary_tags, eps=0.05)
+    set_tags_on_egdes(db, "primary", common.primary_tags, eps=0.0002)
 
 
 def reset_tags_and_cost(db):
-    sql = f"UPDATE edges SET near_trunk=0, cost=0"
+    sql = f"UPDATE edges SET near_trunk=0, near_primary=0, cost=0"
     db.execute(sql)
     db.commit()
 
@@ -178,15 +162,18 @@ def compute_edge_cost(db):
     }
     trunk_tags = ",".join(str(t) for t in common.trunk_tags)
     sql = (
-        "SELECT id, node_from, tag, length, near_trunk "
+        "SELECT id, tag, length, near_trunk, near_primary "
         "FROM edges "
         f"WHERE tag NOT IN ({trunk_tags});"
     )
     IDs, costs = [], []
     for e in db.execute(sql):
-        ID, node_from, tag, length, near_trunk = e
+        ID, tag, length, near_trunk, near_primary = e
         cost = length * factor[tag]
-        cost *= common.near_trunk_cost if near_trunk else 1
+        if near_trunk:
+            cost *= common.near_trunk_cost
+        elif near_primary:
+            cost *= common.near_primary_cost
         IDs.append(ID)
         costs.append(cost)
     sql = 'UPDATE edges SET cost=? WHERE id=?'
@@ -211,7 +198,6 @@ def compute_cost(db):
 def main():
     db = DB()
     # db.rebuild()
-
     # basic_setup(db)
     compute_cost(db)
 

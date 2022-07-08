@@ -48,19 +48,19 @@ trunks = {
     "motorway_junction",
     "trunk",
     "trunk_link",
-    "primary",
-    "primary_link",
 }
 
 primary = {
     "primary",
     "primary_link",
-    # "secondary",
-    # "secondary_link",
 }
 
 edge_tags = {t: i for i, t in enumerate(tags)}
 trunk_tags = set(edge_tags[t] for t in trunks)
+primary_tags = set(edge_tags[t] for t in primary)
+
+near_trunk_cost = 3
+near_primary_cost = 20
 
 cost_factor = {
     'steps': 1,
@@ -69,8 +69,8 @@ cost_factor = {
     'bridleway': 1,
     'footway': 1,
     'cycleway': 1.5,
-    'residential': 1.3,
-    'unclassified': 2,
+    'residential': 1.2,
+    'unclassified': 1.5,
     'living_street': 2,
     'pedestrian': 1.2,
     'tertiary': 2,
@@ -82,7 +82,6 @@ cost_factor = {
     'service': 2,
 }
 
-near_trunk_cost = 3
 
 tag_to_color = {
     'path': "black",

@@ -45,6 +45,7 @@ class DB:
             "tag int,"
             "length real default 0.,"
             "near_trunk int default 0,"
+            "near_primary int default 0,"
             "cost real default 0.,"
             "UNIQUE(node_from, node_to)"
             ");"
@@ -146,13 +147,14 @@ class DB:
         # return self.cursor.fetchall()
 
     def get_tagged_coordinates(self, tags):
+        Tags = ",".join(str(t) for t in tags)
         sql = (
             "SELECT latitude, longitude "
             "FROM nodes "
             "WHERE node_id IN "
             "(SELECT  node_from "
             "FROM edges "
-            f"WHERE tag IN ({tags}));"
+            f"WHERE tag IN ({Tags}));"
         )
         return self.execute(sql)
         # return self.cursor.fetchall()
