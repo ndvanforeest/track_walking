@@ -15,6 +15,7 @@ class DB:
 
     def execute(self, statement):
         self.cursor.execute(statement)
+        return self.cursor.fetchall()
 
     def update_old(self, table, ID, **kwargs):
         sql = f'UPDATE edges SET'
@@ -27,14 +28,13 @@ class DB:
 
     def update(self, sql, args):
         self.cursor.executemany(sql, args)
+        self.commit()
 
-    def drop_edge_table(self):
-        try:
-            self.execute('''DROP TABLE edges;''')
-            self.connection.commit()
-        except Exception as e:
-            print("ERROR : " + str(e))
-            print("Cannot drop edge table")
+    def rebuild(self):
+        self.drop_edge_table()
+        self.drop_node_table()
+        self.make_edge_table()
+        self.make_node_table()
 
     def make_edge_table(self):
         sql = (
@@ -56,14 +56,6 @@ class DB:
             print("ERROR : " + str(e))
             print("Cannot make edge table")
 
-    def drop_node_table(self):
-        try:
-            self.execute("DROP TABLE nodes;")
-            self.commit()
-        except Exception as e:
-            print("ERROR : " + str(e))
-            print("Cannot drop table")
-
     def make_node_table(self):
         sql = (
             "CREATE TABLE nodes "
@@ -80,6 +72,22 @@ class DB:
             print("ERROR : " + str(e))
             print("Cannot make table")
 
+    def drop_edge_table(self):
+        try:
+            self.execute('''DROP TABLE edges;''')
+            self.connection.commit()
+        except Exception as e:
+            print("ERROR : " + str(e))
+            print("Cannot drop edge table")
+
+    def drop_node_table(self):
+        try:
+            self.execute("DROP TABLE nodes;")
+            self.commit()
+        except Exception as e:
+            print("ERROR : " + str(e))
+            print("Cannot drop table")
+
     def add_edge(self, m, n, tag):
         sql = (
             "INSERT OR IGNORE INTO edges("
@@ -87,6 +95,7 @@ class DB:
             f" ({m}, {n}, {tag})"
         )
         self.cursor.execute(sql)
+        self.commit()
 
     def add_edges(self, left, right, tags):
         sql = (
@@ -94,6 +103,7 @@ class DB:
             " VALUES (?, ?, ?)"
         )
         self.cursor.executemany(sql, zip(left, right, tags))
+        self.commit()
 
     def add_node(self, Id, lat, lon):
         sql = (
@@ -102,7 +112,6 @@ class DB:
             f" VALUES ({Id}, {lat}, {lon})"
         )
         self.execute(sql)
-        # self.cursor.executemany(sql, zip(*kwargs.values(), ID))
 
     def add_nodes(self, ID, lat, lon):
         sql = (
@@ -111,12 +120,14 @@ class DB:
             f" VALUES (?, ?, ?)"
         )
         self.cursor.executemany(sql, zip(ID, lat, lon))
+        self.commit()
 
     def get_highway_nodes(self):
         # return the nodes ids of the edges
-        self.execute('SELECT node_to, node_from FROM edges;')
         highway_nodes = set()
-        for m in self.cursor.fetchall():
+        # for m in self.cursor.fetchall():
+        sql = 'SELECT node_to, node_from FROM edges;'
+        for m in self.execute(sql):
             highway_nodes.update(m)
         return highway_nodes
 
@@ -124,25 +135,24 @@ class DB:
         sql = "SELECT " + ", ".join(a for a in args) + " FROM nodes"
         if where:
             sql += f" WHERE {where};"
-        self.execute(sql)
-        return self.cursor.fetchall()
+        return self.execute(sql)
+        # return self.cursor.fetchall()
 
     def get_edge_info(self, *args, where=""):
         sql = "SELECT " + ", ".join(a for a in args) + " FROM edges"
         if where:
             sql += f" WHERE {where};"
-        self.execute(sql)
-        return self.cursor.fetchall()
+        return self.execute(sql)
+        # return self.cursor.fetchall()
 
-    def get_trunk_coordinates(self):
-        trunk_tags = ",".join(str(t) for t in common.trunk_tags)
+    def get_tagged_coordinates(self, tags):
         sql = (
             "SELECT latitude, longitude "
             "FROM nodes "
             "WHERE node_id IN "
             "(SELECT  node_from "
             "FROM edges "
-            f"WHERE tag IN ({trunk_tags}));"
+            f"WHERE tag IN ({tags}));"
         )
-        self.execute(sql)
-        return self.cursor.fetchall()
+        return self.execute(sql)
+        # return self.cursor.fetchall()

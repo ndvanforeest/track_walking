@@ -160,7 +160,7 @@ def print_path_stats(G):
 
     for k, v in sorted(length.items(), key=lambda x: -x[1]):
         v = round(100 * v / tot_length)
-        Cost = round(100 * cost[k] / tot_cost)
+        Cost = round(100 * cost[k] / max(tot_cost, 1))
         if v > 0:
             print(
                 f"{c.tags[k]:<13}{colors[k]:<10}{v:>4d}%{Cost:>4d}%{int(cost[k]):>7}"

@@ -55,7 +55,6 @@ def read_write_highway_data(fname, db):
         out_nodes.append(e[1])
         tags.append(G.get_edge_data(*e)['tag'])
     db.add_edges(in_nodes, out_nodes, tags)
-    db.commit()
     print("writing done")
     t.toc()
 
@@ -90,7 +89,6 @@ def read_write_node_coordinates(fname, db):
         lon.append(n[2])
 
     db.add_nodes(ID, lat, lon)
-    db.commit()
     print("node coordinates to db")
     t.toc()
 
@@ -125,43 +123,97 @@ def compute_edge_length(db):
 
     sql = "UPDATE edges SET length=? WHERE ID=?"
     db.update(sql, zip(lengths, ids))
-    db.commit()
     t.toc()
 
 
-def compute_near_trunk(db):
-    X = np.array(db.get_trunk_coordinates())
+# def set_trunk_tags(db):
+#     trunk_tags = ",".join(str(t) for t in common.trunk_tags)
+#     X = np.array(db.get_tagged_coordinates(trunk_tags))
+#     tree = KDTree(X)
+#     # Load the nodes and mark nodes near to a trunk
+#     nodes = np.array(db.get_node_info("node_id", "latitude", "longitude"))
+#     eps = 0.005  # about 500 meters from a trunk
+#     hit = tree.query_radius(nodes[:, [1, 2]], r=eps, count_only=True)
+#     near_to_trunk = nodes[hit > 0][:, 0].astype(int)
+#     ones = [1] * len(near_to_trunk)
+#     sql = f"UPDATE edges SET near_trunk=? WHERE node_from=?"
+#     db.update(sql, zip(ones, near_to_trunk.tolist()))
+
+
+def set_tags_on_egdes(db, tags, eps):
+    X = np.array(db.get_tagged_coordinates(tags))
     tree = KDTree(X)
     # Load the nodes and mark nodes near to a trunk
     nodes = np.array(db.get_node_info("node_id", "latitude", "longitude"))
-    eps = 0.005  # about 500 meters from a trunk
     hit = tree.query_radius(nodes[:, [1, 2]], r=eps, count_only=True)
-    near_to_trunk = nodes[hit > 0][:, 0].astype(int)
-    ones = [1] * len(near_to_trunk)
-    sql = f"UPDATE edges SET near_trunk=? WHERE node_from=?"
-    db.update(sql, zip(ones, near_to_trunk.tolist()))
+    near_nodes = nodes[hit > 0][:, 0].astype(int)
+    ones = [1] * len(near_nodes)
+    sql = "UPDATE edges SET near_trunk=? WHERE node_from=?"
+    db.update(sql, zip(ones, near_nodes.tolist()))
+
+
+def tag_ugly_edges(db):
+    # Avoid walking in the neighborhood of trunks and primary highways
+    # eps = 0.005  is about 500 meters from a trunk
+    trunk_tags = ",".join(str(t) for t in common.trunk_tags)
+    set_tags_on_egdes(db, trunk_tags, eps=0.005)
+
+    # primary_tags = ",".join(str(t) for t in common.trunk_tags)
+    # stay clear about 20 meters from secondary
+    # set_tags_on_egdes(db, primary_tags, eps=0.05)
+
+
+def reset_tags_and_cost(db):
+    sql = f"UPDATE edges SET near_trunk=0, cost=0"
+    db.execute(sql)
     db.commit()
 
 
-def cleanup(db):
-    db.drop_edge_table()
-    db.drop_node_table()
-    db.make_edge_table()
-    db.make_node_table()
+def compute_edge_cost(db):
+    tag_to_idx = {tag_str: i for i, tag_str in enumerate(common.tags)}
+    factor = {
+        tag_to_idx[t]: common.cost_factor[t]
+        for t in tag_to_idx
+        if t not in common.trunks
+    }
+    trunk_tags = ",".join(str(t) for t in common.trunk_tags)
+    sql = (
+        "SELECT id, node_from, tag, length, near_trunk "
+        "FROM edges "
+        f"WHERE tag NOT IN ({trunk_tags});"
+    )
+    IDs, costs = [], []
+    for e in db.execute(sql):
+        ID, node_from, tag, length, near_trunk = e
+        cost = length * factor[tag]
+        cost *= common.near_trunk_cost if near_trunk else 1
+        IDs.append(ID)
+        costs.append(cost)
+    sql = 'UPDATE edges SET cost=? WHERE id=?'
+    db.update(sql, zip(costs, IDs))
+
+
+def basic_setup(db):
+    for province in common.provinces:
+        fname = common.data_dir + province + "-latest.osm.pbf"
+        print(fname)
+        read_write_highway_data(fname, db)
+        read_write_node_coordinates(fname, db)
+    compute_edge_length(db)
+
+
+def compute_cost(db):
+    reset_tags_and_cost(db)
+    tag_ugly_edges(db)
+    compute_edge_cost(db)
 
 
 def main():
     db = DB()
-    # cleanup(db)
+    # db.rebuild()
 
-    # for province in common.provinces:
-    #     fname = common.data_dir + province + "-latest.osm.pbf"
-    #     print(fname)
-    #     read_write_highway_data(fname, db)
-    #     read_write_node_coordinates(fname, db)
-
-    compute_edge_length(db)
-    compute_near_trunk(db)
+    # basic_setup(db)
+    compute_cost(db)
 
     db.close_connection()
 

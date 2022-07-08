@@ -43,13 +43,20 @@ tags = [
 ]
 
 trunks = {
-    "primary",
-    "primary_link",
     "motorway",
     "motorway_link",
     "motorway_junction",
     "trunk",
     "trunk_link",
+    "primary",
+    "primary_link",
+}
+
+primary = {
+    "primary",
+    "primary_link",
+    # "secondary",
+    # "secondary_link",
 }
 
 edge_tags = {t: i for i, t in enumerate(tags)}
@@ -92,6 +99,7 @@ tag_to_color = {
     'tertiary_link': "orange",
     'secondary': "red",
     'secondary_link': "red",
+    'primary': "red",
     'primary_link': "red",
     'service': "black",
 }
