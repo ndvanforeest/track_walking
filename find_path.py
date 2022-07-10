@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 from collections import defaultdict
-import sqlite3
 import numpy as np
 from sklearn.neighbors import KDTree
 import networkx as nx
 import folium
 
-import common as c
+from database import DB
+import common
 
 noorderplantsoen = 53.22448, 6.55563
 haren_roeiclub = 53.17997, 6.57565
@@ -32,14 +32,14 @@ westlaren_weg = 53.09177, 6.66185
 westlaren_coop = 53.0861, 6.6678
 okkerveen = 53.10346, 6.6291
 
-wandeling_1 = [
+walk_1 = [
     tynaarlo_noord,
     okkerveen,
     noordlaarderbos_midden,
     noordlaarderbos,
     westlaren_weg,
 ]
-A_to_B = wandeling_1
+A_to_B = walk_1
 
 roderwolde = 53.1678, 6.4690
 zanddijk = 53.16590, 6.49986
@@ -47,9 +47,9 @@ eelderwolde = 53.1729, 6.5471
 madijk = 53.16450, 6.54072
 peizerwolde_albert_heijn = 53.14709, 6.56690
 voetpad = 53.14446, 6.53776
-wandeling_2 = [zanddijk, madijk, peizerwolde_albert_heijn, voetpad, zanddijk]
+walk_2 = [zanddijk, madijk, peizerwolde_albert_heijn, voetpad, zanddijk]
 
-A_to_B = wandeling_2
+A_to_B = walk_2
 
 
 # A_to_B = [start] + via + [finish]
@@ -63,7 +63,7 @@ def get_containg_rectangle(path, eps=0.1):
     return north, west, south, east
 
 
-def find_node_nearby_gps(point):
+def find_node_nearby_gps(db, point):
     north, west, south, east = get_containg_rectangle([point], eps=0.05)
     sql = (
         "SELECT node_from FROM edges "
@@ -72,24 +72,23 @@ def find_node_nearby_gps(point):
         f"WHERE latitude BETWEEN {south} AND {north} "
         f"AND longitude BETWEEN {west} AND {east}) "
     )
-    cur.execute(sql)
-    nearby = ",".join(str(n[0]) for n in cur.fetchall())
+    nearby = ",".join(str(n[0]) for n in db.execute(sql))
     sql = (
         "SELECT node_id, latitude, longitude FROM nodes "
         f"WHERE node_id IN ({nearby});"
     )
-    cur.execute(sql)
-    res = np.array([[n[0], n[1], n[2]] for n in cur.fetchall()])
+    res = np.array([[n[0], n[1], n[2]] for n in db.execute(sql)])
     tree = KDTree(res[:, [1, 2]])
     p = np.array(point).reshape(1, -1)  # reshape required
     dist, ind = tree.query(p, k=1)
     return int(res[ind][0][0][0])  # lots of unpacking
 
 
-def get_shortest_path():
+def get_shortest_path(db):
     north, west, south, east = get_containg_rectangle(A_to_B)
 
-    trunk_tags = ",".join(str(t) for t in c.trunk_tags)
+    G = nx.Graph()
+    trunk_tags = ",".join(str(t) for t in common.trunk_tags)
     sql = (
         "SELECT  node_from, node_to, length, cost, tag, near_trunk, near_primary "
         "FROM edges "
@@ -99,9 +98,7 @@ def get_shortest_path():
         f"WHERE latitude BETWEEN {south} AND {north} "
         f"AND longitude BETWEEN {west} AND {east}); "
     )
-    cur.execute(sql)
-    G = nx.Graph()
-    for e in cur.fetchall():
+    for e in db.execute(sql):
         node_from, node_to, length, cost, tag, near_trunk, near_primary = e
         G.add_edge(
             node_from,
@@ -113,19 +110,21 @@ def get_shortest_path():
             near_primary=near_primary,
         )
 
-    path = [find_node_nearby_gps(p) for p in A_to_B]
+    path = [find_node_nearby_gps(db, p) for p in A_to_B]
     best = []
     for p, q in zip(path[:-1], path[1:]):
         best += nx.shortest_path(G, p, q, weight="cost")
     return G.subgraph(best), best
 
 
-def plot_path(G, fname):
-    res = ",".join(str(n) for n in G.nodes())
-    cur.execute(
-        f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
-    )
-    nodes = {ID: (la, lo) for ID, la, lo in cur.fetchall()}
+def get_node_info_for_graph(db, nodes):
+    res = ",".join(str(n) for n in nodes)
+    sql = f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
+    return {ID: (la, lo) for ID, la, lo in db.execute(sql)}
+
+
+def plot_path(db, G, fname):
+    nodes = get_node_info_for_graph(db, G.nodes())
 
     # location for the map
     mean_lat = sum(v[0] for v in nodes.values()) / len(nodes)
@@ -134,9 +133,9 @@ def plot_path(G, fname):
     myMap = folium.Map(location=[mean_lat, mean_lon], zoom_start=zoom)
 
     colors = {
-        i: c.tag_to_color[t]
-        for i, t in enumerate(c.tags)
-        if t in c.tag_to_color
+        i: common.tag_to_color[t]
+        for i, t in enumerate(common.tags)
+        if t in common.tag_to_color
     }
     for m, n, data in G.edges(data=True):
         p, q = nodes[m], nodes[n]
@@ -162,9 +161,9 @@ def print_path_stats(G):
     tot_cost = sum(cost.values())
 
     colors = {
-        i: c.tag_to_color[t]
-        for i, t in enumerate(c.tags)
-        if t in c.tag_to_color
+        i: common.tag_to_color[t]
+        for i, t in enumerate(common.tags)
+        if t in common.tag_to_color
     }
 
     for k, v in sorted(length.items(), key=lambda x: -x[1]):
@@ -172,7 +171,7 @@ def print_path_stats(G):
         Cost = round(100 * cost[k] / max(tot_cost, 1))
         if v > 0:
             print(
-                f"{c.tags[k]:<13}{colors[k]:<10}{int(v):>4d}{perc:>4d}%{int(cost[k]):>7}{Cost:>4d}%"
+                f"{common.tags[k]:<13}{colors[k]:<10}{int(v):>4d}{perc:>4d}%{int(cost[k]):>7}{Cost:>4d}%"
             )
 
     print(
@@ -192,13 +191,7 @@ def print_path_stats(G):
     print(f"Near trunk: {int(trunk)}")
 
 
-def write_path_to_gpx(path, fname):
-    res = ",".join(str(n) for n in path)
-    cur.execute(
-        f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
-    )
-    nodes = {ID: (la, lo) for ID, la, lo in cur.fetchall()}
-
+def write_path_to_gpx(db, path, fname):
     import gpxpy
 
     gpx = gpxpy.gpx.GPX()
@@ -211,49 +204,40 @@ def write_path_to_gpx(path, fname):
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gpx_track.segments.append(gpx_segment)
 
+    nodes = get_node_info_for_graph(db, path)
     for n in path:
         p = nodes[n]
-        gpx_segment.points.append(
-            gpxpy.gpx.GPXTrackPoint(p[0], p[1])  # , elevation=1234)
-        )
+        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(p[0], p[1]))
     with open(fname, "w") as fp:
         fp.write(gpx.to_xml())
 
 
-def write_path_to_kml(path=[], fname=""):
+def write_path_to_kml(db, path=[], fname="my_walk.kml"):
     import simplekml
 
-    res = ",".join(str(n) for n in path)
-    cur.execute(
-        f'SELECT node_id, latitude, longitude FROM nodes WHERE node_id in ({res});'
-    )
-    nodes = {ID: (la, lo) for ID, la, lo in cur.fetchall()}
-
-    path_nodes = []
-    for n in path:
-        p = nodes[n]
-        path_nodes.append((p[1], p[0]))  # lon, lat
+    nodes = get_node_info_for_graph(db, path)
+    # longitute, latitute -> latitude, longitude
+    la_lo_path = [[nodes[n][1], nodes[n][0]] for n in path]
 
     kml = simplekml.Kml()
     ls = kml.newlinestring(name='My walk')
     ls.description = "pieter zand pad app"
-    ls.coords = path_nodes
-    ls.style.linestyle.width = 5
+    ls.coords = la_lo_path
+    ls.style.linestyle.width = 3
     ls.style.linestyle.color = simplekml.Color.blue
-    kml.save("my_walk.kml")
+    kml.save(fname)
 
 
 def main():
-    B, path = get_shortest_path()
-    # B, path = re_engineer_path(B, path)
-    plot_path(B, fname="map.html")
+    db = DB()
+    B, path = get_shortest_path(db)
+    plot_path(db, B, fname="map.html")
     print_path_stats(B)
-    # write_path_to_gpx(path, fname="mypath.gpx")
-    write_path_to_kml(path, fname="mypath.kml")
+    # write_path_to_gpx(db, path, fname="mypath.gpx")
+    write_path_to_kml(db, path, fname="my_walk.kml")
+
+    db.close_connection()
 
 
 if __name__ == '__main__':
-    conn = sqlite3.connect(c.db_name)
-    cur = conn.cursor()
     main()
-    conn.close()
