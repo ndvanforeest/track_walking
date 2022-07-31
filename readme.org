@@ -144,6 +144,8 @@ However, again to limit the number of nodes in the search graph we specify a thi
 
 The code is in =find_path.py= and it outputs the path to =html= with =folium=, to =gpx= and to =kml=.
 
+Here is a handy kml viewer in the browser: https://www.doogal.co.uk/KmlViewer
+
 * Things to TODO
 
 - use =networkit= to find the shortest path.

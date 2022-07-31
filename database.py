@@ -137,14 +137,12 @@ class DB:
         if where:
             sql += f" WHERE {where};"
         return self.execute(sql)
-        # return self.cursor.fetchall()
 
     def get_edge_info(self, *args, where=""):
         sql = "SELECT " + ", ".join(a for a in args) + " FROM edges"
         if where:
             sql += f" WHERE {where};"
         return self.execute(sql)
-        # return self.cursor.fetchall()
 
     def get_tagged_coordinates(self, tags):
         Tags = ",".join(str(t) for t in tags)
@@ -157,4 +155,3 @@ class DB:
             f"WHERE tag IN ({Tags}));"
         )
         return self.execute(sql)
-        # return self.cursor.fetchall()

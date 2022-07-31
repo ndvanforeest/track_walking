@@ -1,4 +1,5 @@
-data_dir = "/home/nicky/tmp/"
+# import simplekml.Color = color
+data_dir = "/home/nicky/tmp/pbf/"
 db_name = data_dir + "nodes_and_edges.db"
 
 provinces = [
@@ -14,7 +15,10 @@ provinces = [
 ]
 
 provinces = [
+    "groningen",
     "drenthe",
+    "overijssel",
+    "gelderland",
 ]
 
 tags = [
@@ -101,4 +105,9 @@ tag_to_color = {
     'primary': "red",
     'primary_link': "red",
     'service': "black",
+}
+
+
+tag_color = {
+    i: tag_to_color[t] for i, t in enumerate(tags) if t in tag_to_color
 }

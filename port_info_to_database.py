@@ -180,6 +180,12 @@ def compute_edge_cost(db):
     db.update(sql, zip(costs, IDs))
 
 
+def compute_cost(db):
+    reset_tags_and_cost(db)
+    tag_ugly_edges(db)
+    compute_edge_cost(db)
+
+
 def basic_setup(db):
     for province in common.provinces:
         fname = common.data_dir + province + "-latest.osm.pbf"
@@ -189,20 +195,16 @@ def basic_setup(db):
     compute_edge_length(db)
 
 
-def compute_cost(db):
-    reset_tags_and_cost(db)
-    tag_ugly_edges(db)
-    compute_edge_cost(db)
-
-
 def main():
     db = DB()
 
     build_new_database_p = False
+    build_new_database_p = True
     if build_new_database_p:
         db.rebuild()
 
     fill_database_with_new_info_p = False
+    fill_database_with_new_info_p = True
     if fill_database_with_new_info_p:
         basic_setup(db)
 
