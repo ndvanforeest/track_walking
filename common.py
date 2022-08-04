@@ -7,18 +7,11 @@ provinces = [
     "drenthe",
     "overijssel",
     "gelderland",
+    "utrecht",
     "limburg",
     # "flevoland",
     # "friesland",
     # "noord-holland",
-    # "utrecht",
-]
-
-provinces = [
-    "groningen",
-    "drenthe",
-    "overijssel",
-    "gelderland",
 ]
 
 tags = [

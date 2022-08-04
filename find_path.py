@@ -179,6 +179,7 @@ class Path:
             best += nx.shortest_path(self.G, p, q, weight="cost")[:-1]
         # :-1 because end points are the same
         best.append(route[-1])
+
         segment = Segment(best[0], best[1], self.G)
         self.append(segment)
         for n in best[2:]:
@@ -224,7 +225,7 @@ class Path:
                 )
 
         print(
-            f"total lenght: {int(self.length()):<6d} m, total cost: {int(self.cost()):<5d}"
+            f"total length: {int(self.length()):<6d} m, total cost: {int(self.cost()):<5d}"
         )
         print(f"Near primary: {int(self.near_primary())} m")
         print(f"Near trunk: {int(self.near_trunk())} m")
