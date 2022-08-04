@@ -12,19 +12,9 @@ from pytictoc import TicToc
 
 from database import DB
 import common
+from my_walks import A_to_B
 
 t = TicToc()
-
-if os.path.exists("my_walks.py"):
-    # this loads my own walks
-    from my_walks import A_to_B, path_name
-else:
-    # This is an example of how to make a route
-    rheden_station = 52.0100, 6.0308
-    velp_station = 51.99518, 5.98082
-    arnhem_station = 51.98567, 5.89893
-    A_to_B = [arnhem_station, velp_station, rheden_station]
-    path_name = 'arnhem_velp_rheden'
 
 
 class Coordinates:
@@ -148,7 +138,7 @@ class Path:
 
     def get_graph_data(self):
         north, west, south, east = self.coordinates.get_containing_rectangle(
-            A_to_B
+            A_to_B.coordinates
         )
 
         trunk_tags = ",".join(str(t) for t in common.trunk_tags)
@@ -176,17 +166,22 @@ class Path:
 
     def compute_shortest_path(self):
         self.get_graph_data()
-        route = [self.coordinates.find_node_nearby_gps(p) for p in A_to_B]
+        if A_to_B.node_ids:
+            route = A_to_B.node_ids
+        else:
+            route = [
+                self.coordinates.find_node_nearby_gps(p)
+                for p in A_to_B.coordinates
+            ]
+            print(f"Node ids of path sketch: {route}")
         best = []
         for p, q in zip(route[:-1], route[1:]):
-            best += nx.shortest_path(self.G, p, q, weight="cost")
-        path = nx.DiGraph()
-        for p, q in zip(best[:-1], best[1:]):
-            path.add_edge(p, q)
-        nodes = list(path.nodes())
-        segment = Segment(nodes[0], nodes[1], self.G)
+            best += nx.shortest_path(self.G, p, q, weight="cost")[:-1]
+        # :-1 because end points are the same
+        best.append(route[-1])
+        segment = Segment(best[0], best[1], self.G)
         self.append(segment)
-        for n in nodes[2:]:
+        for n in best[2:]:
             tag = self.G[segment.last_node()][n]["tag"]
             if tag == segment.tag:
                 segment.append_node(n)
@@ -209,7 +204,7 @@ class Path:
                 weight=3.5,
                 opacity=1,
             ).add_to(myMap)
-        myMap.save(path_name + ".html")
+        myMap.save(A_to_B.name + ".html")
 
     def print_stats(self):
         length = defaultdict(float)
@@ -242,13 +237,14 @@ class Path:
             "purple": simplekml.Color.purple,
             "red": simplekml.Color.blue,
             "yellow": simplekml.Color.yellow,
+            "orange": simplekml.Color.orange,
         }
 
         km_lenght = int(self.length() / 1000 + 0.5)  # round to km
-        name = f"{path_name}_{km_lenght}"
+        name = f"{A_to_B.name}_{km_lenght}"
 
         self.coordinates.update(self.nodes())
-        kml = simplekml.Kml(name=path_name)
+        kml = simplekml.Kml(name=A_to_B.name)
         for segment in self._segments:
             ls = kml.newlinestring()
             ls.coords = [
@@ -282,7 +278,7 @@ def write_path_to_gpx(db, path):
     for n in path:
         p = nodes[n]
         gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(p[0], p[1]))
-    with open(path_name, "w") as fp:
+    with open(A_to_B.name, "w") as fp:
         fp.write(gpx.to_xml())
 
 
